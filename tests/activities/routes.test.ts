@@ -192,6 +192,106 @@ describe('activities routes', () => {
     });
   });
 
+  describe('PATCH /api/activities/bulk-status', () => {
+    // AC-2.1
+    it('returns 207 with per-item outcomes', async () => {
+      const response = await request(app)
+        .patch('/api/activities/bulk-status')
+        .set('Authorization', MANAGER)
+        .send({ ids: ['act_restock_aisle4', 'act_missing'], status: 'DONE' });
+
+      expect(response.status).toBe(207);
+      expect(response.body.requested).toBe(2);
+      expect(response.body.updated).toBe(1);
+      expect(response.body.results).toContainEqual({
+        id: 'act_restock_aisle4',
+        outcome: 'updated',
+        code: null,
+        status: 'DONE',
+      });
+      expect(response.body.results).toContainEqual({
+        id: 'act_missing',
+        outcome: 'not_found',
+        code: 'NOT_FOUND',
+        status: null,
+      });
+    });
+
+    // AC-2.2
+    it('returns 207 when no item could be updated', async () => {
+      const response = await request(app)
+        .patch('/api/activities/bulk-status')
+        .set('Authorization', MANAGER)
+        .send({ ids: ['act_missing'], status: 'DONE' });
+
+      expect(response.status).toBe(207);
+      expect(response.body.updated).toBe(0);
+      expect(response.body.results[0].outcome).toBe('not_found');
+    });
+
+    // AC-2.3
+    it('returns 400 for request-level problems', async () => {
+      const emptyIds = await request(app)
+        .patch('/api/activities/bulk-status')
+        .set('Authorization', MANAGER)
+        .send({ ids: [], status: 'DONE' });
+      expect(emptyIds.status).toBe(400);
+      expect(emptyIds.body.error.code).toBe('VALIDATION_ERROR');
+      expect(emptyIds.body.error.details).toEqual({ field: 'ids' });
+
+      const badStatus = await request(app)
+        .patch('/api/activities/bulk-status')
+        .set('Authorization', MANAGER)
+        .send({ ids: ['act_restock_aisle4'], status: 'TODO' });
+      expect(badStatus.status).toBe(400);
+      expect(badStatus.body.error.details).toEqual({ field: 'status' });
+
+      const missingIds = await request(app)
+        .patch('/api/activities/bulk-status')
+        .set('Authorization', MANAGER)
+        .send({ status: 'DONE' });
+      expect(missingIds.status).toBe(400);
+      expect(missingIds.body.error.details).toEqual({ field: 'ids' });
+    });
+
+    // AC-2.4
+    it('returns 401 without a token', async () => {
+      const response = await request(app)
+        .patch('/api/activities/bulk-status')
+        .send({ ids: ['act_restock_aisle4'], status: 'DONE' });
+
+      expect(response.status).toBe(401);
+      expect(response.body.error.code).toBe('UNAUTHORIZED');
+
+      const unchanged = await request(app)
+        .get('/api/activities/act_restock_aisle4')
+        .set('Authorization', MANAGER);
+      expect(unchanged.body.status).toBe('TODO');
+    });
+
+    // AC-2.6
+    it('raises an SLA alert for the assignee via the bulk endpoint', async () => {
+      const before = await request(app).get('/api/alerts').set('Authorization', ASSOCIATE);
+
+      const response = await request(app)
+        .patch('/api/activities/bulk-status')
+        .set('Authorization', MANAGER)
+        .send({ ids: ['act_restock_aisle4'], status: 'BLOCKED' });
+      expect(response.status).toBe(207);
+
+      const after = await request(app).get('/api/alerts').set('Authorization', ASSOCIATE);
+      expect(after.body.length).toBe(before.body.length + 1);
+
+      const breach = after.body.find((alert: { type: string }) => alert.type === 'SLA_BREACH');
+      expect(breach).toBeDefined();
+      // The alerts subscriber composes the id into `title` and the reason into `body`.
+      // AC-2.6 says "a body naming act_restock_aisle4"; in the Notification type that is
+      // `title`. Asserting both halves so the alert is pinned either way.
+      expect(breach.title).toContain('act_restock_aisle4');
+      expect(breach.body).toContain('BLOCKED');
+    });
+  });
+
   describe('DELETE /api/activities/:id', () => {
     it('returns 204 for the owner', async () => {
       const response = await request(app)

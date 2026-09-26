@@ -5,6 +5,8 @@ import { ValidationError } from '../shared/errors/ValidationError';
 import { currentUser, requireAuth } from '../staff/auth.middleware';
 import { ActivityService, activityService } from './service';
 import type {
+  BulkStatusInput,
+  BulkStatusTarget,
   CreateTaskInput,
   TaskCategory,
   TaskFilters,
@@ -79,6 +81,27 @@ export const createActivityRouter = (service: ActivityService = activityService)
     '/:id',
     asyncHandler(async (req, res) => {
       res.status(200).json(await service.getTask(String(req.params.id)));
+    }),
+  );
+
+  // Registered before PATCH /:id — otherwise :id captures the literal "bulk-status".
+  router.patch(
+    '/bulk-status',
+    asyncHandler(async (req, res) => {
+      const caller = currentUser(req.user);
+      const body = asObject(req.body);
+
+      if (!Array.isArray(body.ids)) {
+        throw new ValidationError('ids must be an array of activity ids', { field: 'ids' });
+      }
+
+      const input: BulkStatusInput = {
+        ids: body.ids.map((id, index) => optionalString(id, `ids[${index}]`) ?? ''),
+        status: body.status as BulkStatusTarget,
+      };
+
+      // 207 describes the batch, not the items: per-item failures are in the body.
+      res.status(207).json(await service.bulkUpdateStatus(caller, input));
     }),
   );
 
