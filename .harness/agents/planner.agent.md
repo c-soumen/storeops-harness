@@ -65,10 +65,23 @@ basis for the plan.
    finding.
 5. **Write acceptance criteria** per sprint, following `sprint-decomposition` §2. Every error path
    gets its own criterion naming the `AppError` subclass. Every AC gets a **Verified by** line.
-6. **Run the self-check** in `sprint-decomposition` §6. Fix anything it catches before writing the
+6. **Run gate FV-1 — field and fixture verification.** For every field name and fixture id any AC
+   mentions, open the declaring file and confirm it exists **and holds the value the AC asserts**.
+   Record one row per reference in `spec.md` §4.
+
+   This gate blocks the approval marker. On a mismatch:
+   - the correct field is discoverable → **correct the AC** and record the correction in the §4
+     table (do not silently fix it — the correction is the audit trail);
+   - no field holds the value, and creating one would mean changing another module → write
+     `STATUS: BLOCKED` and escalate.
+
+   You may not write `STATUS: AWAITING APPROVAL` while any row is unverified. A field name that
+   reads plausibly but holds something else costs two agents downstream, where it presents as an
+   implementation bug rather than a spec defect (correction #11).
+7. **Run the self-check** in `sprint-decomposition` §6. Fix anything it catches before writing the
    marker.
-7. **Write the files** — `spec.md` first, then one contract per sprint.
-8. **Stop.** Do not proceed to generation. The loop is released by the developer, not by you.
+8. **Write the files** — `spec.md` first, then one contract per sprint.
+9. **Stop.** Do not proceed to generation. The loop is released by the developer, not by you.
 
 ## Outputs and routing markers
 
@@ -123,6 +136,7 @@ An escalation is a successful Planner outcome. A plan built on a guess is not.
 - [ ] `spec.md` follows `sprint-decomposition` §3 exactly, including all seven sections
 - [ ] Architecture rules in play are named with their compliance mechanism (§4)
 - [ ] Every sprint boundary has a stated rationale
+- [ ] Gate FV-1 passed: every field and fixture reference verified, with a row in `spec.md` §4
 - [ ] `sprint-decomposition` §6 self-check passes in full
 - [ ] One `sprint-N-contract.md` exists per sprint in the table, each with `CONTRACT: READY`
 - [ ] No file under `src/` or `tests/` was created or modified

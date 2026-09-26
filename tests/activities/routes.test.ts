@@ -284,9 +284,7 @@ describe('activities routes', () => {
 
       const breach = after.body.find((alert: { type: string }) => alert.type === 'SLA_BREACH');
       expect(breach).toBeDefined();
-      // The alerts subscriber composes the id into `title` and the reason into `body`.
-      // AC-2.6 says "a body naming act_restock_aisle4"; in the Notification type that is
-      // `title`. Asserting both halves so the alert is pinned either way.
+      // AC-2.6: the id is in `title`, the reason in `body` — both halves asserted.
       expect(breach.title).toContain('act_restock_aisle4');
       expect(breach.body).toContain('BLOCKED');
     });

@@ -73,6 +73,37 @@ AC-1.3  GIVEN an authenticated STORE_MANAGER and a bulk request containing
 `NotFoundError`, and `ForbiddenError`, that is three criteria, each naming the subclass. This is
 what prevents failure mode 3 (tests that assert status codes without verifying the business rule).
 
+### Field and fixture verification — mandatory before the approval marker
+
+Every **field name** and every **fixture id** an AC mentions must be verified against the actual
+domain type or seed data. Not "looks plausible" — opened and read.
+
+For each AC, build a row in the spec's *Field and fixture verification* table:
+
+| Referenced | Kind | Declared in | Holds the asserted value? |
+|---|---|---|---|
+| `Notification.title` | field | `src/alerts/types.ts` | ✅ — subscriber writes `SLA breach on activity <id>` |
+| `act_restock_aisle4` | fixture | `src/activities/repository.ts` seeds | ✅ — TODO / HIGH / RESTOCKING |
+
+Three failure shapes, all of which have actually happened in this harness:
+
+1. **The field does not exist** on the type. Rewrite the AC against a real field.
+2. **The field exists but holds something else.** This is the dangerous one, because it reads
+   perfectly. *AC-2.6 originally required "a `body` naming `act_restock_aisle4`" — but
+   `Notification.body` holds the reason (`"Activity moved to BLOCKED (priority HIGH)."`) and the id
+   lives in `title`.* The Generator hit it as a test failure and had to work around a defective
+   contract. Correction #11.
+3. **The fixture does not exist.** *AC-1.3 referenced "an activity whose `storeId` is `store_002`"
+   when all three seeded activities are in `store_001`.* Either reference a real fixture or state
+   in the AC how the test arranges it.
+
+**Gate: `FV-1`.** If any row is not ✅, you may **not** write `STATUS: AWAITING APPROVAL`. Either
+correct the reference to the field that genuinely holds the value — recording the correction in the
+table — or, when no such field exists and the feature would require changing another module to
+create one, write `STATUS: BLOCKED` and escalate. Emitting a spec with an unverified reference is a
+Planner failure, not a Generator problem: the cost lands two agents downstream, where it looks like
+an implementation bug.
+
 **Every cross-module effect gets a criterion asserted at the effect**, not at the emit call:
 "THEN `GET /api/alerts` as `usr_associate` includes an `SLA_BREACH` alert" — not "THEN
 `task.sla_breached` is emitted".
@@ -103,20 +134,28 @@ Written to `.harness/output/spec.md`. Must end with the approval marker on its o
 | activities | routes | new PATCH /api/activities/bulk-status |
 | activities | service | new bulkUpdateStatus method |
 
-## 4. Architecture rules in play
+## 4. Field and fixture verification (gate FV-1)
+| Referenced | Kind | Declared in | Holds the asserted value? |
+|---|---|---|---|
+
+<One row per distinct field name and fixture id referenced by any AC. Every row must
+be ✅ before the approval marker may be written. Corrections made during verification
+are recorded here, not silently applied.>
+
+## 5. Architecture rules in play
 <Name the specific rules from architecture-principles this feature touches and how
 compliance will be achieved. E.g. "R2: the audit trail is raised as
 task.status_changed per updated activity; activities does not import alerts.">
 
-## 5. Sprint breakdown
+## 6. Sprint breakdown
 | Sprint | Title | Rationale for the boundary |
 |---|---|---|
 | 1 | <title> | <why the cut is here> |
 
-## 6. Risks and open questions
+## 7. Risks and open questions
 - <anything the Planner could not resolve from the prompt + skills>
 
-## 7. Definition of done (whole feature)
+## 8. Definition of done (whole feature)
 - [ ] `npx tsc --noEmit` → 0 errors
 - [ ] `npx eslint .` → 0 errors
 - [ ] `npx jest --coverage` → all pass, thresholds met
@@ -205,6 +244,7 @@ Note what that criterion pins down: partial failure is **per-item reporting**, n
 
 - [ ] Every sprint ends with the build green
 - [ ] Every AC is GIVEN/WHEN/THEN with an observable THEN
+- [ ] **FV-1: every field name and fixture id in every AC verified against the domain type / seed data, with a row in the verification table**
 - [ ] Every AC names the role **and** store where authorization applies
 - [ ] Every error path has its own AC naming the `AppError` subclass
 - [ ] Every cross-module effect is asserted at the effect, not the emit
@@ -213,3 +253,4 @@ Note what that criterion pins down: partial failure is **per-item reporting**, n
 - [ ] Affected-modules table names a layer for every changed file
 - [ ] Architecture rules in play are named explicitly (§4 of spec.md)
 - [ ] Sprint count is 1–3 (4 needs justification; 5+ means the prompt is too broad)
+- [ ] No unverified reference remains — otherwise STATUS: BLOCKED, not AWAITING APPROVAL
