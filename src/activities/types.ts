@@ -52,6 +52,37 @@ export interface TaskFilters {
   status?: TaskStatus;
 }
 
+/**
+ * Shift handover: the only statuses an outgoing shift may set in bulk.
+ * Narrower than TaskStatus on purpose — a bulk request cannot reopen work.
+ */
+export const BULK_STATUS_TARGETS = ['DONE', 'BLOCKED'] as const;
+export type BulkStatusTarget = (typeof BULK_STATUS_TARGETS)[number];
+
+/** Per-item result of a bulk status update. Partial failure is reported, not thrown. */
+export type BulkStatusOutcome = 'updated' | 'unchanged' | 'not_found' | 'forbidden';
+
+export interface BulkStatusInput {
+  ids: ID[];
+  status: BulkStatusTarget;
+}
+
+export interface BulkStatusResultItem {
+  id: ID;
+  outcome: BulkStatusOutcome;
+  /** The AppError code an equivalent single-item call would have produced, else null. */
+  code: string | null;
+  /** Resulting status, or null when the change was not applied. */
+  status: TaskStatus | null;
+}
+
+export interface BulkStatusResult {
+  /** Count after de-duplication. */
+  requested: number;
+  updated: number;
+  results: BulkStatusResultItem[];
+}
+
 export const isTaskStatus = (value: unknown): value is TaskStatus =>
   typeof value === 'string' && (TASK_STATUSES as readonly string[]).includes(value);
 
@@ -60,3 +91,6 @@ export const isTaskPriority = (value: unknown): value is TaskPriority =>
 
 export const isTaskCategory = (value: unknown): value is TaskCategory =>
   typeof value === 'string' && (TASK_CATEGORIES as readonly string[]).includes(value);
+
+export const isBulkStatusTarget = (value: unknown): value is BulkStatusTarget =>
+  typeof value === 'string' && (BULK_STATUS_TARGETS as readonly string[]).includes(value);

@@ -86,6 +86,18 @@ export class ActivityRepository {
     return this.tasks.get(id);
   }
 
+  /** Single lookup pass for bulk operations; unknown ids are simply absent. */
+  public findByIds(ids: readonly ID[]): Task[] {
+    const found: Task[] = [];
+    for (const id of ids) {
+      const task = this.tasks.get(id);
+      if (task) {
+        found.push(task);
+      }
+    }
+    return found;
+  }
+
   public create(task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>): Task {
     const timestamp = nowIso();
     const created: Task = { ...task, id: newId('act'), createdAt: timestamp, updatedAt: timestamp };

@@ -303,4 +303,213 @@ describe('ActivityService', () => {
       await expect(service.listTasksForProgramme('prg_spring_reset')).resolves.toHaveLength(2);
     });
   });
+
+  describe('bulkUpdateStatus', () => {
+    // AC-1.1
+    it('updates every activity in the batch', async () => {
+      const result = await service.bulkUpdateStatus(manager, {
+        ids: ['act_restock_aisle4', 'act_planogram_home'],
+        status: 'DONE',
+      });
+
+      expect(result.requested).toBe(2);
+      expect(result.updated).toBe(2);
+      expect(result.results).toEqual([
+        { id: 'act_restock_aisle4', outcome: 'updated', code: null, status: 'DONE' },
+        { id: 'act_planogram_home', outcome: 'updated', code: null, status: 'DONE' },
+      ]);
+      await expect(service.getTask('act_restock_aisle4')).resolves.toMatchObject({
+        status: 'DONE',
+      });
+      await expect(service.getTask('act_planogram_home')).resolves.toMatchObject({
+        status: 'DONE',
+      });
+    });
+
+    // AC-1.2
+    it('reports per-item outcomes without failing the whole batch', async () => {
+      const lead: AuthenticatedUser = {
+        id: 'usr_lead',
+        storeId: 'store_001',
+        role: 'DEPARTMENT_LEAD',
+      };
+
+      const result = await service.bulkUpdateStatus(lead, {
+        ids: ['act_restock_aisle4', 'act_missing'],
+        status: 'BLOCKED',
+      });
+
+      expect(result.updated).toBe(1);
+      expect(result.results).toContainEqual({
+        id: 'act_restock_aisle4',
+        outcome: 'updated',
+        code: null,
+        status: 'BLOCKED',
+      });
+      expect(result.results).toContainEqual({
+        id: 'act_missing',
+        outcome: 'not_found',
+        code: 'NOT_FOUND',
+        status: null,
+      });
+    });
+
+    // AC-1.3
+    it('refuses activities from another store without touching them', async () => {
+      const otherStoreManager: AuthenticatedUser = {
+        id: 'usr_manager',
+        storeId: 'store_002',
+        role: 'STORE_MANAGER',
+      };
+      const foreign = await service.createTask(otherStoreManager, {
+        title: 'Backroom racking teardown',
+        programmeId: 'prg_backroom_refit',
+      });
+
+      const result = await service.bulkUpdateStatus(manager, {
+        ids: ['act_restock_aisle4', foreign.id],
+        status: 'DONE',
+      });
+
+      expect(result.updated).toBe(1);
+      expect(result.results).toContainEqual({
+        id: foreign.id,
+        outcome: 'forbidden',
+        code: 'FORBIDDEN',
+        status: null,
+      });
+      expect(result.results).toContainEqual({
+        id: 'act_restock_aisle4',
+        outcome: 'updated',
+        code: null,
+        status: 'DONE',
+      });
+      await expect(service.getTask(foreign.id)).resolves.toMatchObject({ status: 'TODO' });
+    });
+
+    // AC-1.4
+    it('reports unchanged and emits nothing when already in the target status', async () => {
+      const handler = jest.fn();
+      bus.on('task.status_changed', handler);
+
+      const result = await service.bulkUpdateStatus(manager, {
+        ids: ['act_chiller_temp_check'],
+        status: 'DONE',
+      });
+
+      expect(result.updated).toBe(0);
+      expect(result.results).toEqual([
+        { id: 'act_chiller_temp_check', outcome: 'unchanged', code: null, status: 'DONE' },
+      ]);
+      expect(handler).not.toHaveBeenCalled();
+    });
+
+    // AC-1.5
+    it('emits one status_changed event per changed activity', async () => {
+      const handler = jest.fn();
+      bus.on('task.status_changed', handler);
+
+      await service.bulkUpdateStatus(manager, {
+        ids: ['act_restock_aisle4', 'act_planogram_home', 'act_missing'],
+        status: 'DONE',
+      });
+
+      expect(handler).toHaveBeenCalledTimes(2);
+      expect(handler.mock.calls[0]?.[0]).toMatchObject({
+        taskId: 'act_restock_aisle4',
+        previousStatus: 'TODO',
+        status: 'DONE',
+        actorId: 'usr_manager',
+      });
+      expect(handler.mock.calls[1]?.[0]).toMatchObject({
+        taskId: 'act_planogram_home',
+        previousStatus: 'IN_PROGRESS',
+        status: 'DONE',
+        actorId: 'usr_manager',
+      });
+    });
+
+    // AC-1.6
+    it('raises an SLA breach for each activity moved to BLOCKED', async () => {
+      const bulkBreach = jest.fn();
+      const singleBreach = jest.fn();
+
+      bus.on('task.sla_breached', bulkBreach);
+      await service.bulkUpdateStatus(manager, { ids: ['act_restock_aisle4'], status: 'BLOCKED' });
+      bus.off('task.sla_breached', bulkBreach);
+
+      expect(bulkBreach).toHaveBeenCalledTimes(1);
+      expect(bulkBreach.mock.calls[0]?.[0]).toMatchObject({
+        taskId: 'act_restock_aisle4',
+        priority: 'HIGH',
+      });
+
+      // The payload must be shaped exactly like the single-update path.
+      bus.on('task.sla_breached', singleBreach);
+      await service.updateTask(manager, 'act_planogram_home', { status: 'BLOCKED' });
+
+      expect(Object.keys(bulkBreach.mock.calls[0]?.[0] ?? {}).sort()).toEqual(
+        Object.keys(singleBreach.mock.calls[0]?.[0] ?? {}).sort(),
+      );
+    });
+
+    // AC-1.7
+    it('throws ValidationError for request-level problems', async () => {
+      const fiftyOne = Array.from({ length: 51 }, (_, index) => `act_${index}`);
+
+      await expect(
+        service.bulkUpdateStatus(manager, { ids: [], status: 'DONE' }),
+      ).rejects.toBeInstanceOf(ValidationError);
+      await expect(
+        service.bulkUpdateStatus(manager, {
+          ids: ['act_restock_aisle4'],
+          status: 'TODO' as never,
+        }),
+      ).rejects.toBeInstanceOf(ValidationError);
+      await expect(
+        service.bulkUpdateStatus(manager, {
+          ids: ['act_restock_aisle4'],
+          status: 'PAUSED' as never,
+        }),
+      ).rejects.toBeInstanceOf(ValidationError);
+      await expect(
+        service.bulkUpdateStatus(manager, { ids: fiftyOne, status: 'DONE' }),
+      ).rejects.toBeInstanceOf(ValidationError);
+
+      await expect(
+        service.bulkUpdateStatus(manager, { ids: [], status: 'DONE' }),
+      ).rejects.toMatchObject({ details: { field: 'ids' } });
+      await expect(
+        service.bulkUpdateStatus(manager, { ids: fiftyOne, status: 'DONE' }),
+      ).rejects.toMatchObject({ details: { field: 'ids' } });
+      await expect(
+        service.bulkUpdateStatus(manager, {
+          ids: ['act_restock_aisle4'],
+          status: 'TODO' as never,
+        }),
+      ).rejects.toMatchObject({ details: { field: 'status' } });
+
+      // Nothing was modified by any of the rejected calls.
+      await expect(service.getTask('act_restock_aisle4')).resolves.toMatchObject({
+        status: 'TODO',
+      });
+      expect(repository.count()).toBe(3);
+    });
+
+    // AC-1.8
+    it('deduplicates repeated ids', async () => {
+      const handler = jest.fn();
+      bus.on('task.status_changed', handler);
+
+      const result = await service.bulkUpdateStatus(manager, {
+        ids: ['act_restock_aisle4', 'act_restock_aisle4'],
+        status: 'DONE',
+      });
+
+      expect(result.requested).toBe(1);
+      expect(result.results).toHaveLength(1);
+      expect(result.updated).toBe(1);
+      expect(handler).toHaveBeenCalledTimes(1);
+    });
+  });
 });

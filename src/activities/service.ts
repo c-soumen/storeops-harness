@@ -6,11 +6,28 @@ import { isManagerRole } from '../shared/types/common';
 import type { AuthenticatedUser, ID } from '../shared/types/common';
 import { ProgrammeService, programmeService } from '../programmes/service';
 import { ActivityRepository, activityRepository } from './repository';
-import { isTaskCategory, isTaskPriority, isTaskStatus } from './types';
-import type { CreateTaskInput, Task, TaskFilters, UpdateTaskInput } from './types';
+import {
+  BULK_STATUS_TARGETS,
+  isBulkStatusTarget,
+  isTaskCategory,
+  isTaskPriority,
+  isTaskStatus,
+} from './types';
+import type {
+  BulkStatusInput,
+  BulkStatusResult,
+  BulkStatusResultItem,
+  CreateTaskInput,
+  Task,
+  TaskFilters,
+  UpdateTaskInput,
+} from './types';
 
 /** Statuses that indicate the activity can no longer progress unaided. */
 const BREACH_STATUSES = new Set(['BLOCKED']);
+
+/** Upper bound on one shift-handover batch — keeps the loop and the response bounded. */
+const BULK_MAX_ITEMS = 50;
 
 export class ActivityService {
   constructor(
@@ -149,6 +166,96 @@ export class ActivityService {
     }
 
     return updated;
+  }
+
+  /**
+   * Shift handover: move many activities to DONE or BLOCKED in one pass.
+   *
+   * Partial failure is *reported*, not thrown — an unknown or out-of-store id
+   * becomes a per-item outcome carrying the code an equivalent single-item call
+   * would have produced. Only request-level problems throw.
+   */
+  public async bulkUpdateStatus(
+    caller: AuthenticatedUser,
+    input: BulkStatusInput,
+  ): Promise<BulkStatusResult> {
+    if (!isBulkStatusTarget(input.status)) {
+      throw new ValidationError(
+        `status must be one of ${BULK_STATUS_TARGETS.join(', ')}`,
+        { field: 'status' },
+      );
+    }
+
+    const requestedIds = Array.isArray(input.ids) ? input.ids : [];
+    const ids = [
+      ...new Set(
+        requestedIds
+          .map((id) => (typeof id === 'string' ? id.trim() : ''))
+          .filter((id) => id.length > 0),
+      ),
+    ];
+
+    if (ids.length === 0) {
+      throw new ValidationError('ids must contain at least one activity id', { field: 'ids' });
+    }
+    if (ids.length > BULK_MAX_ITEMS) {
+      throw new ValidationError(`ids must contain no more than ${BULK_MAX_ITEMS} activity ids`, {
+        field: 'ids',
+      });
+    }
+
+    const found = new Map(this.repository.findByIds(ids).map((task) => [task.id, task]));
+    const results: BulkStatusResultItem[] = [];
+    let updated = 0;
+
+    for (const id of ids) {
+      const existing = found.get(id);
+
+      if (!existing) {
+        results.push({ id, outcome: 'not_found', code: 'NOT_FOUND', status: null });
+        continue;
+      }
+      if (existing.storeId !== caller.storeId) {
+        results.push({ id, outcome: 'forbidden', code: 'FORBIDDEN', status: null });
+        continue;
+      }
+      // Idempotent: a retried handover must not double the audit trail.
+      if (existing.status === input.status) {
+        results.push({ id, outcome: 'unchanged', code: null, status: existing.status });
+        continue;
+      }
+
+      const next = this.repository.update(id, { status: input.status });
+      if (!next) {
+        results.push({ id, outcome: 'not_found', code: 'NOT_FOUND', status: null });
+        continue;
+      }
+
+      updated += 1;
+      results.push({ id, outcome: 'updated', code: null, status: next.status });
+
+      // Audit entry per changed activity — same event the single-item path emits.
+      this.bus.emit('task.status_changed', {
+        taskId: next.id,
+        storeId: next.storeId,
+        assigneeId: next.assigneeId,
+        previousStatus: existing.status,
+        status: next.status,
+        actorId: caller.id,
+      });
+
+      if (BREACH_STATUSES.has(next.status)) {
+        this.bus.emit('task.sla_breached', {
+          taskId: next.id,
+          storeId: next.storeId,
+          assigneeId: next.assigneeId,
+          priority: next.priority,
+          reason: `Activity moved to ${next.status}`,
+        });
+      }
+    }
+
+    return { requested: ids.length, updated, results };
   }
 
   public async deleteTask(caller: AuthenticatedUser, id: ID): Promise<void> {
