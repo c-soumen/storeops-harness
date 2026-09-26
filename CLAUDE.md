@@ -41,8 +41,21 @@ Everything after that runs autonomously until all sprints PASS or an escalation 
 |---|---|---|---|---|
 | Planner | `.harness/agents/planner.agent.md` | Once per feature, by the developer | app-context, architecture-principles, sprint-decomposition | `spec.md`, `sprint-N-contract.md` |
 | Generator | `.harness/agents/generator.agent.md` | Once per sprint per iteration | app-context, architecture-principles, coding-conventions, api-integration, how-to-test | `src/`, `tests/`, `generator-summary.md` |
-| Evaluator | `.harness/agents/evaluator.agent.md` | After each Generator run | architecture-principles, how-to-review, evaluation-criteria | `evaluator-feedback.md` |
-| Monitor | `.harness/agents/monitor.agent.md` | After each sprint verdict | app-context + the sprint's feedback and summary | `run-log.md` → `.harness/reviews/` |
+| Evaluator | `.harness/agents/evaluator.agent.md` | After each Generator run | architecture-principles, how-to-review, grading-criteria | `evaluator-feedback.md`, `sprint-N-checks.json` |
+| Monitor | `.harness/agents/monitor.agent.md` | After each sprint verdict | app-context, grading-criteria + the sprint's feedback and summary | `run-log.md` → `.harness/reviews/` |
+
+Skill files, and who reads them:
+
+| Skill | Planner | Generator | Evaluator | Monitor |
+|---|---|---|---|---|
+| `app-context` | ✅ | ✅ | as needed | ✅ |
+| `architecture-principles` | ✅ | ✅ | ✅ | |
+| `sprint-decomposition` | ✅ | | | |
+| `coding-conventions` | | ✅ | via check A13 | |
+| `api-integration` | | ✅ (route work) | via check A13 | |
+| `how-to-test` | | ✅ | | |
+| `how-to-review` | | | ✅ | |
+| `grading-criteria` | | | ✅ | ✅ |
 
 Each agent reads its skill files **before** acting — that is feedforward context, not
 documentation. An agent that skips them will produce output the next agent rejects.
@@ -62,8 +75,10 @@ for sprint N in 1..T:
     iteration i = 1
     ├─ Generator implements sprint-N-contract.md, runs the four gates,
     │  writes generator-summary.md ending GENERATOR: COMPLETE
-    ├─ Evaluator re-runs gates, scores dimensions, writes
-    │  evaluator-feedback.md ending VERDICT: PASS | CONDITIONAL PASS | FAIL
+    ├─ Evaluator re-runs gates, applies 7 hard gates in fixed order, scores
+    │  DIM-A (55%) + DIM-B (45%), records sprint-N-checks.json, runs
+    │  `node .harness/bin/verdict.mjs` and pastes its VERDICT BLOCK into
+    │  evaluator-feedback.md ending VERDICT: PASS | CONDITIONAL PASS | FAIL | ESCALATE
     ├─ Monitor writes run-log.md to .harness/reviews/
     └─ route on verdict (§4)
 ```
@@ -80,6 +95,11 @@ Read the last `VERDICT:` line of `.harness/output/evaluator-feedback.md`:
 | `PASS` | All hard gates pass; weighted score ≥ threshold | Archive artefacts to `.harness/reviews/`. Advance to sprint N+1. If N was the last sprint, the feature is done — report to developer |
 | `CONDITIONAL PASS` | All hard gates pass; score below threshold but no correctness finding | Archive. Advance, **and** carry the findings forward into the next sprint's Generator invocation as required rework |
 | `FAIL` | Any hard gate failed, or a correctness finding | If iteration < 3: re-invoke Generator with `evaluator-feedback.md`, iteration+1, same contract. If iteration = 3: escalate (§5) |
+
+The verdict is **computed, not judged**: the Evaluator records binary check results and
+`.harness/bin/verdict.mjs` applies the rule table from `grading-criteria` §5. Identical check
+results therefore produce byte-identical output — verified by running it three times on the same
+input and diffing (empty). See `grading-criteria` §5 for the table and the thresholds.
 
 Also escalate immediately, without consuming iterations, on:
 
@@ -171,9 +191,10 @@ than an architectural layer.
 |---|---|---|
 | `CLAUDE.md` | This file — orchestrator | Committed |
 | `PROMPT.md` | Feature prompt for the demonstration run | Committed |
-| `.harness/agents/*.agent.md` | Agent definitions | Committed |
-| `.harness/skills/*/SKILL.md` | Feedforward context | Committed |
-| `.harness/output/` | Live run files: `spec.md`, `sprint-N-contract.md`, `generator-summary.md`, `evaluator-feedback.md`, `escalation.md` | **Gitignored during a run** |
+| `.harness/agents/*.agent.md` | Agent definitions — planner, generator, evaluator, monitor | Committed |
+| `.harness/skills/*/SKILL.md` | Feedforward context — 8 skills | Committed |
+| `.harness/bin/verdict.mjs` | Deterministic verdict calculator — the executable copy of `grading-criteria` §5 | Committed |
+| `.harness/output/` | Live run files: `spec.md`, `sprint-N-contract.md`, `generator-summary.md`, `evaluator-feedback.md`, `sprint-N-checks.json`, `escalation.md` | **Gitignored during a run** |
 | `.harness/reviews/` | Archived per sprint: `sprint-N-generator-summary.md`, `sprint-N-evaluator-feedback.md`, `sprint-N-run-log.md` | Committed — governance audit trail |
 | `src/`, `tests/` | StoreOps application and its tests | Committed |
 
