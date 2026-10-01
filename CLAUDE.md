@@ -191,12 +191,22 @@ than an architectural layer.
 |---|---|---|
 | `CLAUDE.md` | This file — orchestrator | Committed |
 | `PROMPT.md` | Feature prompt for the demonstration run | Committed |
+| `README.md` | Reviewer navigation — reading order, gate command, local run | Committed |
+| `DESIGN_BRIEF.md` | Architectural reasoning — §A intent, §B governance, §C non-determinism, §D decisions | Committed |
+| `DEPLOYMENT.md`, `REFLECTION.md` | Deployment evidence; one-page reflection on the demonstration run | Committed |
+| `JOURNAL.md` | Build journal — corrections #11–#17, rejected decisions, platform notes | Committed |
 | `.harness/agents/*.agent.md` | Agent definitions — planner, generator, evaluator, monitor | Committed |
 | `.harness/skills/*/SKILL.md` | Feedforward context — 8 skills | Committed |
 | `.harness/bin/verdict.mjs` | Deterministic verdict calculator — the executable copy of `grading-criteria` §5 | Committed |
-| `.harness/output/` | Live run files: `spec.md`, `sprint-N-contract.md`, `generator-summary.md`, `evaluator-feedback.md`, `sprint-N-checks.json`, `escalation.md` | **Gitignored during a run** |
-| `.harness/reviews/` | Archived per sprint: `sprint-N-generator-summary.md`, `sprint-N-evaluator-feedback.md`, `sprint-N-run-log.md` | Committed — governance audit trail |
+| `.harness/output/` | Live run files: `spec.md`, `sprint-N-contract.md`, `generator-summary.md`, `evaluator-feedback.md`, `sprint-N-checks.json`, `run-log.md`, `escalation.md` | **Gitignored during a run** |
+| `.harness/reviews/` | Archived per sprint: `sprint-N-generator-summary.md`, `sprint-N-evaluator-feedback.md`, `sprint-N-run-log.md` (FAIL iterations as `sprint-N-iteration-i-*`) | Committed — governance audit trail |
+| `.harness/reviews/` (demonstration feature) | **Run 1, retrospective:** the three files above per sprint. **Run 2, live loop:** `sprint-N-live-{generator-summary,evaluator-feedback,run-log}.md` + `sprint-N-live-checks.json`. Planner output from run 2, archived when the run completed: `spec.md`, `sprint-N-contract.md`. Cross-run comparison: `live-vs-retrospective.md` | Committed |
+| `.harness-notes/` | Baseline scaffold corrections #1–#10 — source material for the skill files | Committed |
 | `src/`, `tests/` | StoreOps application and its tests | Committed |
+| `.github/workflows/ci.yml` | CI pipeline (§7): the same four gates, then build the image, run it, and check the 207 | Committed |
+| `Dockerfile`, `.dockerignore`, `docker-compose.yml` | `node:20-alpine` multi-stage image; local compose | Committed |
+| `deploy/cloudrun.sh`, `deploy/evidence/` | Manual Cloud Run deploy; captured 207 acceptance transcript | Committed |
+| `package.json`, `tsconfig*.json`, `jest.config.ts`, `.eslintrc.cjs` | Build and gate configuration — check A11 / hard gate HG-A4 treats these as gate files that must not change | Committed |
 
 Files in `.harness/output/` are **unqualified and overwritten** — `generator-summary.md`, not
 `sprint-1-generator-summary.md`. So archiving is not optional bookkeeping: it is what stops sprint
