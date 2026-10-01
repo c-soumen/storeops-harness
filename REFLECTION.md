@@ -1,8 +1,14 @@
 # Reflection — what the live run showed about operating the harness
 
-`JOURNAL.md` closes with a design-level gap: nobody reviews the Evaluator. The live run confirmed
-that gap (correction #16). This note is about something different. The harness cannot see its own
-running cost, and it believes it can.
+**What it did well.** The verdicts reproduced: PASS/PASS in both sprints, and `verdict.mjs` gave
+byte-identical output on every input. Correction #11 moved the AC-2.6 defect from a failing test at
+Generator time to a contract fix at planning time. `src/alerts/**` stayed untouched across both
+runs and still alerted correctly. Running fresh, file-only agents also caught two false-MET claims
+the retrospective review had accepted (`live-vs-retrospective.md`).
+
+**Where it fell short.** `JOURNAL.md` already covers the design-level gap: nobody reviews the
+Evaluator, confirmed by correction #16. This note is about an operational gap. The harness cannot
+see its own running cost, and it believes it can.
 
 ## The limitation: the cost signal is guessed, and it is ~4.5× low
 
@@ -24,12 +30,10 @@ something*: jest and coverage output, `git diff` and `git show`, curl bodies, re
 reasoning between tool calls. That unseen share is about three-quarters of the cost. It also
 explains the 53 minutes it took to verify an eight-line diff.
 
-This matters because the estimate drives decisions. A reviewer reading the archive would conclude
-that a sprint costs ~50k tokens and that skill files dominate. Both conclusions are wrong. The
-expensive part is gate execution and evidence gathering. That is precisely what the harness
-should spend on, and it is invisible in the log. A trend line built on this number would miss
-the regressions that matter most: an Evaluator that starts re-running the suite twice, or a jest
-run slowed by OneDrive.
+This matters because the estimate drives decisions. The archive implies a sprint costs ~50k
+tokens and that skill files dominate it. In fact the expensive part is gate execution and evidence
+gathering, which is invisible in the log. A trend line built on this number would miss an
+Evaluator that starts re-running the suite twice.
 
 ## The improvement: meter, then report. Don't estimate.
 
