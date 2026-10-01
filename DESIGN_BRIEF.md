@@ -6,18 +6,15 @@
 **Demonstration feature:** Shift handover bulk status update — `PATCH /api/activities/bulk-status`
 **Stack:** Node.js 20 LTS / TypeScript 5.x (strict) / Express 4.x / Jest + supertest / ESLint
 
-This brief is the architectural reasoning behind the working harness. It covers four sections:
-intent decomposition (§A), governance framework (§B), non-determinism strategy (§C), and key
-architectural decisions (§D). The four sections mirror the four graded dimensions in the rubric.
+The architectural reasoning behind the working harness, in four sections that mirror the rubric.
 
 ---
 
 ## §A — Intent Decomposition
 
-The demonstration feature is one sentence in `PROMPT.md`: outgoing shift staff mark many
-activities `DONE` or `BLOCKED` in a single request, with partial-failure reporting and an audit
-entry per updated task. The Planner turns that sentence into `spec.md` (108 lines) and two sprint
-contracts (109 + 108 lines) that the Generator implements without further clarification.
+`PROMPT.md` is one sentence: outgoing shift staff mark many activities `DONE` or `BLOCKED` in one
+request, with partial-failure reporting and an audit entry per updated task. The Planner turns it
+into `spec.md` and two sprint contracts, which the Generator implements without clarification.
 
 ### Sprint boundary — where the cut was made and why
 
@@ -73,10 +70,8 @@ travels over the event bus.
 
 ## §B — Governance Framework
 
-The harness encodes StoreOps standards in three artefacts: **skill files** (feedforward context
-that each agent reads before acting), **agent files** (what each agent's responsibility is), and
-the `.harness/reviews/` **archive** (the permanent audit trail). CLAUDE.md is the orchestrator;
-`.harness/bin/verdict.mjs` is the executable copy of the verdict rule table.
+StoreOps standards live in **skill files** (read before acting), **agent files** (responsibilities),
+and the `.harness/reviews/` **archive** (audit trail), orchestrated by `CLAUDE.md`.
 
 ### Skill file strategy — 8 skills, chosen deliberately
 
@@ -91,15 +86,12 @@ the `.harness/reviews/` **archive** (the permanent audit trail). CLAUDE.md is th
 | `how-to-review` | Evaluator | Check application order, hard-gate priority, finding severity → check-failure link |
 | `grading-criteria` | Evaluator, Monitor | Two weighted dimensions (55/45), 7 hard gates, verdict rule table (executed by `verdict.mjs`) |
 
-**Shared vs specialised.** `app-context` and `architecture-principles` are shared because every
-agent needs the same picture of StoreOps to avoid producing contradictory artefacts. The other six
-are single-reader — the Generator does not need to know how the Evaluator scores, only what would
-score well.
+**Shared vs specialised.** `app-context` and `architecture-principles` are shared so every agent
+works from one picture of StoreOps. The other six are single-reader: the Generator needs to know
+what scores well, not how the Evaluator scores.
 
-**StoreOps-specific, not generic.** Every rule cites the codebase directly: the R2 event-bus
-example names `task.sla_breached`; the coding-conventions PATCH rule names `nullableString`; the
-api-integration route-ordering warning names `PATCH /:id`. A skill file that could apply to any
-REST API would fail the reviewer's traceability test in the rubric.
+**StoreOps-specific, not generic.** Every rule cites the codebase: R2 names `task.sla_breached`,
+the PATCH rule names `nullableString`, the route-ordering warning names `PATCH /:id`.
 
 ### The archive as audit trail — what makes `.harness/reviews/` load-bearing
 
@@ -108,22 +100,16 @@ Generator run, **not** on a PASS. Archive-on-PASS was the original design and be
 #12: two back-to-back sprints would silently overwrite the earlier record, and a FAIL iteration
 would never be archived at all — precisely the evidence a governance trail exists to hold.
 
-For this feature the archive holds two runs: six retrospective files (two sprints × three
-artefacts), eight live-run files (`sprint-N-live-*`, adding each sprint's `checks.json`), and a
-comparison between the two runs. The three artefacts per sprint are the Generator's self-declared
-`generator-summary.md`, the Evaluator's independent `evaluator-feedback.md`, and the Monitor's
-`run-log.md`. Anyone with repository access can reconstruct: what the Generator built,
-what the Evaluator found, what the verdict was, how many iterations were consumed, and which
-findings were routed to which agent for the next sprint.
+Each sprint archives `generator-summary.md` (self-declared), `evaluator-feedback.md`
+(independent), and `run-log.md`. Both runs are kept: retrospective, live (`sprint-N-live-*`),
+and a comparison of the two. Anyone with repository access can reconstruct what was built, what
+was found, the verdict, the iterations, and where each finding was routed.
 
 **How this surfaces a recurring quality issue.** The Monitor reads the archive and flags
-repetition. In this feature, the same defect class — an acceptance criterion asserting against
-a domain shape without verifying the shape existed — appeared in sprint 1 (AC-1.3 referencing a
-non-existent `store_002` fixture) and sprint 2 (AC-2.6 naming `body` when the value lives in
-`title`). Two occurrences is the Monitor's threshold to stop treating it as bad luck; it produced
-correction #11, which became a Planner hard gate and a new self-check in the
-`sprint-decomposition` skill. Without the archive, the second occurrence would have looked like
-an isolated review comment.
+repetition. Both sprints had an AC asserting against an unverified domain shape: AC-1.3 used a
+non-existent `store_002` fixture, and AC-2.6 named `body` for a value in `title`. Two occurrences
+is the Monitor's threshold. It produced correction #11, a Planner hard gate plus a
+`sprint-decomposition` self-check. Without the archive, the second would have looked isolated.
 
 ### Traceable rule — R2 Event bus only
 
@@ -156,28 +142,26 @@ combination is `grading-criteria` hard gate HG-A3.
 
 ## §C — Non-Determinism Strategy
 
-LLM output varies run to run. The Evaluator's job is to convert that variability into a verdict
-that does not. This is done in three layers: binary check results, an executable verdict rule,
-and an explicit escalation path when the review itself cannot decide.
+Variable LLM output becomes a stable verdict through three layers: binary check results, an
+executable verdict rule, and an escalation path for when the review cannot decide.
 
 ### Two dimensions, weighted 55 / 45
 
 `DIM-A — Architecture compliance (55%)` and `DIM-B — Contract fulfilment and test substance
-(45%)`. Weights sum to 100 exactly — `.harness/bin/verdict.mjs` refuses to run otherwise.
+(45%)`. `verdict.mjs` refuses to run unless the weights sum to 100.
 
-The 10-point tilt toward Architecture is deliberate, not cosmetic. Three of the four client
-failure modes (cross-module repository imports, raw `Error` throws, missing event-bus
-integration) are architectural — they compile, they test, and they rot the design invisibly.
-Failure mode 3 (tests asserting only HTTP status codes) is a `DIM-B` concern and gets nearly
-equal weight because it is severe; only lower because its defects are visible at review time,
-where architectural drift is not. A 50 / 50 split would treat "the design is wrong" and "the
-test is thin" as equally recoverable, which they are not.
+The 10-point tilt is deliberate. Three of the four client failure modes are architectural:
+cross-module repository imports, raw `Error` throws, and missing event-bus integration. They
+compile, they pass tests, and they rot the design invisibly. Failure mode 3 (status-code-only
+tests) is the `DIM-B` concern, weighted slightly lower because its defects are visible at review
+time. A 50 / 50 split would treat "the design is wrong" and "the test is thin" as equally
+recoverable.
 
 ### Seven hard gates, applied before any scoring
 
-Applied top-to-bottom, first failure ends the review with `VERDICT: FAIL`. Every remaining
-check is recorded `NOT_ASSESSED` — no partial credit on a hard-gate breach, because a partial
-score invites negotiation about a gate that is not negotiable.
+The gates are applied top to bottom. The first failure ends the review with `VERDICT: FAIL`, and
+every remaining check is recorded `NOT_ASSESSED`. There is no partial credit, because a partial
+score invites negotiation over a gate that is not negotiable.
 
 | # | Gate | Backing check | Type | Specific failure mode it prevents |
 |---|---|---|---|---|
@@ -189,10 +173,9 @@ score invites negotiation about a gate that is not negotiable.
 | 6 | **HG-A3** | A5 — no sibling service imported for an effect | LLM-assessed + grep | **Client failure mode 4 (structural)** — a missing event does not fail any tool check; the code works, the seam is broken. Invisible until a second module needs the same signal — must block, not deduct |
 | 7 | **HG-B3** | B3 — every AC's business rule verified | LLM-assessed | **Client failure mode 3** — the sprint's business rule is unproven. Coverage can read 97% while the one criterion the sprint existed for is unasserted (correction #11's original trigger) |
 
-Five hard gates are automated tool checks; two are LLM-assessed. The spec §5.4 requirement is
-"at least one automated tool check per dimension" — DIM-A meets it with three (HG-A4, HG-A2,
-HG-A1), DIM-B with two (HG-B1, HG-B2). The LLM-assessed gates exist where automation cannot
-reach: an emitted event is not something `tsc` sees.
+Five gates are automated tool checks: three in DIM-A, two in DIM-B, which meets spec §5.4's
+one-per-dimension minimum. The two LLM-assessed gates cover what automation cannot see, such as
+an event that is never emitted.
 
 ### Verdict rule, executed rather than interpreted
 
@@ -205,17 +188,11 @@ ELSE IF weighted_total >= 70       → CONDITIONAL PASS
 ELSE                                → FAIL
 ```
 
-This table lives in `grading-criteria/SKILL.md` §5 and executes in `.harness/bin/verdict.mjs`.
-The Evaluator records its check results as JSON, runs
-
-```bash
-node .harness/bin/verdict.mjs .harness/output/sprint-N-checks.json
-```
-
-and pastes the canonical `VERDICT BLOCK` verbatim into `evaluator-feedback.md`. Identical
-input JSON therefore produces byte-identical output — verifiable with `diff`, not asserted.
-
-The check was run three times on sprint 1's input during Day 7–9:
+The table in `grading-criteria/SKILL.md` §5 executes in `.harness/bin/verdict.mjs`. The Evaluator
+writes its check results as JSON, runs
+`node .harness/bin/verdict.mjs .harness/output/sprint-N-checks.json`, and pastes the
+`VERDICT BLOCK` verbatim. The same JSON gives byte-identical output, which `diff` can verify.
+Three runs on sprint 1's input (Day 7–9):
 
 ```
 2f42f2012c0ff17f13ac8c1abe698f6fb6ec4f9ad843699e052d6a168bcfaf46  det-run1.txt
@@ -223,32 +200,24 @@ The check was run three times on sprint 1's input during Day 7–9:
 2f42f2012c0ff17f13ac8c1abe698f6fb6ec4f9ad843699e052d6a168bcfaf46  det-run3.txt
 ```
 
-Three identical SHA-256 hashes. Two counter-tests then confirmed the determinism is real
-rather than a constant function: flipping B3 to FAIL produced `VERDICT: FAIL`; flipping A5 to
-UNDETERMINED produced `VERDICT: ESCALATE`. The output changes with the input; it does not
-change with the run.
+Two counter-tests ruled out a constant function: flipping B3 to FAIL gave `VERDICT: FAIL`, and
+flipping A5 to UNDETERMINED gave `VERDICT: ESCALATE`.
 
-One honest limit. What is byte-identical is the `VERDICT BLOCK`: verdict, hard-gate table,
-per-check results, dimension scores. The prose in *Findings* and *Strengths* is LLM-authored
-and will be worded differently between runs. The spec §5.4 requirement is that the **verdict**
-is reproducible, not the wording, and that boundary is stated in `evaluator.agent.md` rather
-than left to inference. Wording variance is what LLM output *is*; pretending otherwise would
-be dishonest.
+**Limit 1.** Only the `VERDICT BLOCK` is byte-identical. The *Findings* prose varies between
+runs. Spec §5.4 requires a reproducible **verdict**, not reproducible wording, and
+`evaluator.agent.md` states that boundary.
 
-A second limit, found by the live run (`.harness/reviews/live-vs-retrospective.md`).
-Byte-identity holds **given the same check JSON**. The live sprint inputs reproduced it again
-(`39f5b1af…` ×3 for sprint 1, `165f482b…` ×3 for sprint 2), and both live verdicts matched the
-retrospective ones. Two *independent* Evaluator runs over identical code still recorded four
-different check results (B5, B6, A6). The cause was criterion wording that allows two readings,
-not variance in the script. No verdict moved, because all four checks are soft and the scores had
-headroom above 85. But the guarantee stops at the JSON: what goes *into* it is only as
-deterministic as the check definitions are precise. Logged as correction #15.
+**Limit 2, found by the live run** (`.harness/reviews/live-vs-retrospective.md`). Byte-identity
+holds **given the same JSON**. It reproduced on both live inputs (`39f5b1af…` ×3,
+`165f482b…` ×3), and the live verdicts matched the retrospective ones. Two independent Evaluators
+still recorded four different check results (B5, B6, A6) on identical code, because the criterion
+wording allows two readings. These are soft checks with headroom above 85, so no verdict moved.
+The JSON is only as deterministic as the check definitions (correction #15).
 
 ### Escalation — the fourth verdict
 
-Some situations should not produce a PASS or a FAIL. They should halt the loop and hand off to
-a human. Escalation is not a failure of the harness — it is the harness refusing to ship
-something it cannot verify.
+Some situations should halt the loop and go to a human. That is not a harness failure; it is the
+harness refusing to ship what it cannot verify.
 
 Triggers, from `grading-criteria` §6:
 
@@ -258,16 +227,13 @@ Triggers, from `grading-criteria` §6:
 - A BLOCKER whose fix requires changing the contract — only the Planner may
 - A BLOCKER whose fix requires weakening a gate — never automatic; a human decides
 
-Recipient: the developer who invoked `@planner`. Format lives in `CLAUDE.md` §5:
-`.harness/output/escalation.md` names the sprint, iteration count, verdict history, gate
-status at the moment of escalation, and the specific question the human must decide.
+**Recipient:** the developer who invoked `@planner`. **Contents** (`CLAUDE.md` §5):
+`escalation.md` gives the sprint, the iterations used, the verdict history, the gate status, and
+the specific question the human must decide.
 
 ---
 
 ## §D — Architectural Decisions
-
-Three decisions worth capturing because the alternatives were defensible and the reasoning
-matters for anyone maintaining this harness.
 
 ### D-1 — Archive on run-end, not on PASS
 
