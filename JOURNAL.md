@@ -7,9 +7,11 @@ not reconstructed from memory.
 
 ## Corrections timeline
 
-Fourteen corrections landed in this build. The first ten came from the baseline scaffold
+Seventeen corrections surfaced in this build. The first ten came from the baseline scaffold
 generation (`.harness-notes/baseline-corrections.md`) and became input material for the skill
-files. The four that matter architecturally happened *inside* the harness and are logged here.
+files. Seven happened *inside* the harness and are logged here. #11–#14 came from the
+retrospective run. #15–#17 came from the live run on 2026-10-01 and are proposed, not yet
+applied (see below for why).
 
 ### #11 — Field names in an AC must exist on the type
 
@@ -88,6 +90,47 @@ directly through the verdict table, independent of score.
 **Why it matters.** The connection between narrative (findings) and arithmetic (score) has to
 be explicit or one of them starts drifting. This rule keeps them coupled — a finding without a
 failed check is a signal that the checklist itself needs to grow, not a hidden score penalty.
+
+### #15 — Check wording must admit one reading
+
+**Trigger.** The live run (run 2): fresh Evaluators with no access to `.harness/reviews/`. Sprint 1's
+B6 came back FAIL where the retrospective had recorded PASS, on the same tests.
+
+**Diagnosis.** B6 says "every new event". Run 1 read that as a new event *name*, run 2 as a new
+`emit()` *site*. Sprint 2 repeated the pattern on B5 ("every negative-path test": run 1 cited
+AC-2.4 only, run 2 applied it to every rejection), and on B6/A6, which have no n/a rule. Four
+divergent check results over identical code. Verdicts matched only because the checks were soft
+and the scores had headroom. `verdict.mjs` is deterministic, but its input is not.
+
+**Proposed fix.** Define each term in `grading-criteria/SKILL.md` §2: "negative-path test",
+"new event" (= `emit()` added in the diff), and the n/a conditions for A6, B6, and B7.
+**Not applied in-run.** Changing a gate definition between the runs being compared would make the
+comparison meaningless, and `CLAUDE.md` §4 makes gate edits a developer decision.
+
+### #16 — The Evaluator restated the Generator's claims as evidence
+
+**Trigger.** Both live Generators, working in verification mode, found missing assertions that run
+1's Evaluator had recorded as present. AC-1.7 case (c) did not assert `details.field`. AC-2.3
+cases (b) and (c) did not assert `error.code`. Fixed in `d70ca7a` and `0b12a90`.
+
+**Diagnosis.** Run 1's AC-2.3 evidence uses the same words as its Generator summary. The Evaluator
+verified the claim, not the code. This is the gap "one thing I would design differently" below
+predicts before the live run had been done. The live run is the evidence.
+
+**Proposed fix.** `how-to-review/SKILL.md` §5: for a THEN clause with cases, cite the `file:line`
+of each case's assertion. Wording that matches the summary is not evidence. Run 2's Evaluator
+cited lines per AC and did not repeat the error.
+
+### #17 — A MAJOR under PASS has no route
+
+**Trigger.** Live sprint 2 passed at 96 with an open MAJOR (B5, `tests/activities/routes.test.ts:242`)
+on the final sprint.
+
+**Diagnosis.** `CLAUDE.md` §4 carries MAJORs forward only on CONDITIONAL PASS. A PASS archives and
+advances, so a MAJOR on the last sprint is recorded and then dropped.
+
+**Proposed fix.** In the §4 PASS row, open MAJORs carry forward as they do under CONDITIONAL PASS.
+On the final sprint, the feature-done report lists them as backlog.
 
 ## Decisions I rejected
 
