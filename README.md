@@ -25,9 +25,10 @@ Reviewers should open these six things — nothing else is required to grade the
    Two are shared foundation (`app-context`, `architecture-principles`); the rest are single-
    reader per agent. Every rule cites StoreOps directly — a skill file that could apply to any
    REST API would fail its own §B traceability test.
-5. **[.harness/reviews/](./.harness/reviews/)** — the governance audit trail. Six files
-   across two sprints (generator-summary, evaluator-feedback, run-log per sprint), plus more
-   after the live-loop resumes.
+5. **[.harness/reviews/](./.harness/reviews/)** — the governance audit trail, covering two runs
+   of the same feature. Run 1, retrospective: `sprint-N-{generator-summary,evaluator-feedback,run-log}.md`.
+   Run 2, live loop position: `sprint-N-live-*`, plus each sprint's `checks.json`. Start with
+   [live-vs-retrospective.md](./.harness/reviews/live-vs-retrospective.md).
 6. **[PROMPT.md](./PROMPT.md), [DEPLOYMENT.md](./DEPLOYMENT.md), [REFLECTION.md](./REFLECTION.md)** —
    demonstration-run artefacts. The prompt used to invoke the harness, the deployment
    evidence, and a one-page reflection on the run.
