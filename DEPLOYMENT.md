@@ -18,7 +18,7 @@ response transcript captured 2026-10-01T04:00Z at commit `e1c052d`.
 | Container **runtime stage** reproduced and verified on Node 20 | ✅ | See below. Same Node major, same `npm ci --omit=dev`, same `dist/`-only layout, same `NODE_ENV=production`, same `CMD` |
 | `docker build` + `docker run` + 207 acceptance | ✅ **in CI** | [Run 36815992345](https://github.com/c-soumen/storeops-harness/actions/runs/36815992345): `gates` job 35s, `container` job 25s, 1m 9s total, both green |
 | `docker build` / `docker compose up` locally | ❌ **not executed** | Docker is not installed on the capture host (a corporate-managed Windows laptop) |
-| Cloud Run deploy | ❌ **not executed** | `gcloud` 586 is installed, but `gcloud auth list` reports *No credentialed accounts*. No live URL exists |
+| Cloud Run deploy | ❌ **blocked by IAM** | Authenticated to the Cognizant sandbox project, but `run.locations.list` was denied: Cloud Run needs a grant from a project admin. No live URL exists. See [Cloud deploy attempt](#cloud-deploy-attempt--blocked-by-cognizant-iam) |
 
 A real container ran and answered 207, but only in CI. Nothing in this document claims a public
 URL. The local transcript comes from the runtime-equivalent process described next.
