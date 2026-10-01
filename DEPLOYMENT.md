@@ -89,3 +89,20 @@ container, so a green `container` job is Docker-built evidence for this endpoint
 [36815992345](https://github.com/c-soumen/storeops-harness/actions/runs/36815992345), passed both
 jobs in 1m 9s. The deploy step is not automated, because it needs cloud credentials as repository
 secrets. `deploy/cloudrun.sh` is its manual equivalent.
+
+### Cloud deploy attempt — blocked by Cognizant IAM
+
+- Authenticated as `soumen.choudhury@cognizant.com` via `gcloud auth login`.
+- `gcloud projects list` shows two Cognizant-managed GCP projects:
+  - `cb10784055a-gcpcowork-gc`, the coworking sandbox
+  - `cb11250657a-gebronze-gc`, which is client-named and was not used
+- Set the gcpcowork sandbox as the active project and opened the Cloud Run console.
+- GCP returned: `Permission 'run.locations.list' denied on resource 'projects/cog01ky50amhdwvrhchqv7nj0e8d5'`.
+- **Conclusion:** Cognizant GCP requires an explicit Cloud Run IAM grant from a project admin. That
+  is out of scope for the capstone window.
+- `deploy/cloudrun.sh` remains reviewable. The Docker-built container evidence is unchanged: GitHub
+  Actions CI run [36815992345](https://github.com/c-soumen/storeops-harness/actions/runs/36815992345).
+
+The alternative was a personal Google account and a personal credit card. That would have mixed
+corporate capstone work with personal GCP billing, so stopping at the IAM boundary is the honest
+trade-off.
