@@ -244,6 +244,7 @@ describe('activities routes', () => {
         .set('Authorization', MANAGER)
         .send({ ids: ['act_restock_aisle4'], status: 'TODO' });
       expect(badStatus.status).toBe(400);
+      expect(badStatus.body.error.code).toBe('VALIDATION_ERROR');
       expect(badStatus.body.error.details).toEqual({ field: 'status' });
 
       const missingIds = await request(app)
@@ -251,6 +252,7 @@ describe('activities routes', () => {
         .set('Authorization', MANAGER)
         .send({ status: 'DONE' });
       expect(missingIds.status).toBe(400);
+      expect(missingIds.body.error.code).toBe('VALIDATION_ERROR');
       expect(missingIds.body.error.details).toEqual({ field: 'ids' });
     });
 
