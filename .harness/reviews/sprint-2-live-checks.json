@@ -1,0 +1,20 @@
+{
+  "sprint": "2 of 2",
+  "iteration": 1,
+  "dimensions": {
+    "A": {
+      "A1": "PASS", "A2": "PASS", "A3": "PASS", "A4": "n/a", "A5": "PASS",
+      "A6": "n/a", "A7": "PASS", "A8": "PASS", "A9": "PASS", "A10": "n/a",
+      "A11": "PASS", "A12": "PASS", "A13": "PASS"
+    },
+    "B": {
+      "B1": "PASS", "B2": "PASS", "B3": "PASS", "B4": "PASS", "B5": "FAIL",
+      "B6": "n/a", "B7": "PASS", "B8": "PASS", "B9": "PASS", "B10": "PASS",
+      "B11": "PASS", "B12": "PASS", "B13": "PASS"
+    }
+  },
+  "findings": [
+    { "id": "F-1", "severity": "MAJOR" },
+    { "id": "F-2", "severity": "NOTE" }
+  ]
+}
