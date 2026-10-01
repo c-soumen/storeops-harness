@@ -488,6 +488,12 @@ describe('ActivityService', () => {
           status: 'TODO' as never,
         }),
       ).rejects.toMatchObject({ details: { field: 'status' } });
+      await expect(
+        service.bulkUpdateStatus(manager, {
+          ids: ['act_restock_aisle4'],
+          status: 'PAUSED' as never,
+        }),
+      ).rejects.toMatchObject({ details: { field: 'status' } });
 
       // Nothing was modified by any of the rejected calls.
       await expect(service.getTask('act_restock_aisle4')).resolves.toMatchObject({
