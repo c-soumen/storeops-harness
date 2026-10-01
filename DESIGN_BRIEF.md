@@ -108,9 +108,11 @@ Generator run, **not** on a PASS. Archive-on-PASS was the original design and be
 #12: two back-to-back sprints would silently overwrite the earlier record, and a FAIL iteration
 would never be archived at all — precisely the evidence a governance trail exists to hold.
 
-For this feature the archive holds six files (two sprints × three artefacts): the Generator's
-self-declared `generator-summary.md`, the Evaluator's independent `evaluator-feedback.md`, and the
-Monitor's `run-log.md`. Anyone with repository access can reconstruct: what the Generator built,
+For this feature the archive holds two runs: six retrospective files (two sprints × three
+artefacts), eight live-run files (`sprint-N-live-*`, adding each sprint's `checks.json`), and a
+comparison between the two runs. The three artefacts per sprint are the Generator's self-declared
+`generator-summary.md`, the Evaluator's independent `evaluator-feedback.md`, and the Monitor's
+`run-log.md`. Anyone with repository access can reconstruct: what the Generator built,
 what the Evaluator found, what the verdict was, how many iterations were consumed, and which
 findings were routed to which agent for the next sprint.
 
@@ -232,6 +234,15 @@ and will be worded differently between runs. The spec §5.4 requirement is that 
 is reproducible, not the wording, and that boundary is stated in `evaluator.agent.md` rather
 than left to inference. Wording variance is what LLM output *is*; pretending otherwise would
 be dishonest.
+
+A second limit, found by the live run (`.harness/reviews/live-vs-retrospective.md`).
+Byte-identity holds **given the same check JSON**. The live sprint inputs reproduced it again
+(`39f5b1af…` ×3 for sprint 1, `165f482b…` ×3 for sprint 2), and both live verdicts matched the
+retrospective ones. Two *independent* Evaluator runs over identical code still recorded four
+different check results (B5, B6, A6). The cause was criterion wording that allows two readings,
+not variance in the script. No verdict moved, because all four checks are soft and the scores had
+headroom above 85. But the guarantee stops at the JSON: what goes *into* it is only as
+deterministic as the check definitions are precise. Logged as correction #15.
 
 ### Escalation — the fourth verdict
 
