@@ -1,0 +1,56 @@
+# CI pipeline — the enforcement boundary after push (CLAUDE.md §7).
+# The four quality gates are deliberately identical to the harness gates in .harness/,
+# so the harness cannot pass a commit this pipeline will reject. Governance-of-generation
+# lives in .harness/; build-and-deploy lives here.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Gate 1 — type check
+        run: npx tsc --noEmit
+      - name: Gate 2 — lint
+        run: npx eslint .
+      - name: Gate 3 — tests + coverage thresholds
+        run: npx jest --coverage
+      - name: Gate 4 — architecture invariants
+        run: npx jest tests/shared/architecture.test.ts
+      - name: Build
+        run: npm run build
+
+  container:
+    needs: gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image (node:20-alpine)
+        run: docker build -t storeops-harness:${{ github.sha }} .
+      - name: Run container
+        run: docker run -d --name storeops -p 3000:3000 storeops-harness:${{ github.sha }}
+      - name: Acceptance — PATCH /api/activities/bulk-status returns 207
+        run: |
+          for i in $(seq 1 30); do curl -sf http://localhost:3000/health && break; sleep 1; done
+          status=$(curl -s -o body.json -w '%{http_code}' -X PATCH \
+            -H "Authorization: Bearer token-manager" -H "Content-Type: application/json" \
+            -d '{"ids":["act_restock_aisle4","act_missing"],"status":"DONE"}' \
+            http://localhost:3000/api/activities/bulk-status)
+          cat body.json; echo
+          test "$status" = "207"
+      - name: Container logs
+        if: always()
+        run: docker logs storeops
+  # Deploy (Cloud Run) is intentionally not automated: it needs project credentials as
+  # repository secrets. deploy/cloudrun.sh is the manual equivalent — see DEPLOYMENT.md.
