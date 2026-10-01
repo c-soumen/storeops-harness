@@ -2,9 +2,13 @@
 
 **Target:** container image on `node:20-alpine` (spec §2.3 Step 1: Node 20 LTS). The cloud path is
 Google Cloud Run.
-**Evidence:** [`deploy/evidence/bulk-status-207.txt`](./deploy/evidence/bulk-status-207.txt).
-It shows `PATCH /api/activities/bulk-status` returning `207 Multi-Status`, captured
-2026-10-01T04:00Z at commit `e1c052d`.
+**Evidence (Docker-built):** CI run
+[`36815992345`](https://github.com/c-soumen/storeops-harness/actions/runs/36815992345) passed.
+Its `container` job builds the `node:20-alpine` image from this `Dockerfile`, runs the image, and
+asserts that `PATCH /api/activities/bulk-status` returns `207 Multi-Status`.
+**Evidence (local runtime stage):**
+[`deploy/evidence/bulk-status-207.txt`](./deploy/evidence/bulk-status-207.txt), a full request and
+response transcript captured 2026-10-01T04:00Z at commit `e1c052d`.
 
 ## What was and was not executed
 
@@ -12,11 +16,12 @@ It shows `PATCH /api/activities/bulk-status` returning `207 Multi-Status`, captu
 |---|---|---|
 | `Dockerfile`, `.dockerignore`, `docker-compose.yml`, `deploy/cloudrun.sh` written | ✅ | This commit |
 | Container **runtime stage** reproduced and verified on Node 20 | ✅ | See below. Same Node major, same `npm ci --omit=dev`, same `dist/`-only layout, same `NODE_ENV=production`, same `CMD` |
-| `docker build` / `docker compose up` | ❌ **not executed locally** | Docker is not installed on the capture host (corporate-managed Windows laptop). CI's `container` job builds and runs the image on push. See the last section |
+| `docker build` + `docker run` + 207 acceptance | ✅ **in CI** | [Run 36815992345](https://github.com/c-soumen/storeops-harness/actions/runs/36815992345): `gates` job 35s, `container` job 25s, 1m 9s total, both green |
+| `docker build` / `docker compose up` locally | ❌ **not executed** | Docker is not installed on the capture host (a corporate-managed Windows laptop) |
 | Cloud Run deploy | ❌ **not executed** | `gcloud` 586 is installed, but `gcloud auth list` reports *No credentialed accounts*. No live URL exists |
 
-Nothing in this document claims a running container or a public URL. The transcript comes from
-the runtime-equivalent process described next.
+A real container ran and answered 207, but only in CI. Nothing in this document claims a public
+URL. The local transcript comes from the runtime-equivalent process described next.
 
 ## How the evidence was produced
 
@@ -80,7 +85,7 @@ Deployment sits after the harness (`CLAUDE.md` §7). An image built from a commi
 passed has already cleared `tsc`, `eslint`, `jest --coverage`, and `architecture.test.ts`.
 [`.github/workflows/ci.yml`](./.github/workflows/ci.yml) re-runs the same four gates after every
 push. It then builds this `Dockerfile` and runs the 207 acceptance curl against the running
-container, so a green `container` job is Docker-built evidence for this endpoint. The workflow was
-added at submission time; check the repository's Actions tab for its result, which was not
-observed from the capture host. The deploy step is not automated, because it needs cloud
-credentials as repository secrets. `deploy/cloudrun.sh` is its manual equivalent.
+container, so a green `container` job is Docker-built evidence for this endpoint. Its first run,
+[36815992345](https://github.com/c-soumen/storeops-harness/actions/runs/36815992345), passed both
+jobs in 1m 9s. The deploy step is not automated, because it needs cloud credentials as repository
+secrets. `deploy/cloudrun.sh` is its manual equivalent.
