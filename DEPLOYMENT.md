@@ -12,7 +12,7 @@ It shows `PATCH /api/activities/bulk-status` returning `207 Multi-Status`, captu
 |---|---|---|
 | `Dockerfile`, `.dockerignore`, `docker-compose.yml`, `deploy/cloudrun.sh` written | ✅ | This commit |
 | Container **runtime stage** reproduced and verified on Node 20 | ✅ | See below. Same Node major, same `npm ci --omit=dev`, same `dist/`-only layout, same `NODE_ENV=production`, same `CMD` |
-| `docker build` / `docker compose up` | ❌ **not executed** | Docker is not installed on the capture host (corporate-managed Windows laptop) |
+| `docker build` / `docker compose up` | ❌ **not executed locally** | Docker is not installed on the capture host (corporate-managed Windows laptop). CI's `container` job builds and runs the image on push. See the last section |
 | Cloud Run deploy | ❌ **not executed** | `gcloud` 586 is installed, but `gcloud auth list` reports *No credentialed accounts*. No live URL exists |
 
 Nothing in this document claims a running container or a public URL. The transcript comes from
@@ -78,6 +78,9 @@ the repository is in-memory with seed data. Keep the service up only for a revie
 
 Deployment sits after the harness (`CLAUDE.md` §7). An image built from a commit the harness
 passed has already cleared `tsc`, `eslint`, `jest --coverage`, and `architecture.test.ts`.
-`CLAUDE.md` §7 describes a `.github/` pipeline that would re-run those gates and then build and
-deploy this image. That pipeline is not in this repository: `deploy/cloudrun.sh` is the manual
-equivalent of its deploy step.
+[`.github/workflows/ci.yml`](./.github/workflows/ci.yml) re-runs the same four gates after every
+push. It then builds this `Dockerfile` and runs the 207 acceptance curl against the running
+container, so a green `container` job is Docker-built evidence for this endpoint. The workflow was
+added at submission time; check the repository's Actions tab for its result, which was not
+observed from the capture host. The deploy step is not automated, because it needs cloud
+credentials as repository secrets. `deploy/cloudrun.sh` is its manual equivalent.
