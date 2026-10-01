@@ -1,0 +1,36 @@
+# StoreOps — deployment acceptance transcript
+# Captured: 2026-10-01T04:00:48Z  commit: e1c052d
+# Runtime: production-only deps (npm ci --omit=dev), dist/ only, NODE_ENV=production
+# Node: v20.20.2 (node:20-alpine equivalent; Docker not available on capture host)
+# Server log: [storeops] listening on http://localhost:3000
+
+$ curl -s -i http://localhost:3000/health
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+Content-Length: 36
+
+{"status":"ok","service":"storeops"}
+
+
+$ curl -s -i -X PATCH -H "Authorization: Bearer token-manager" -H "Content-Type: application/json" -d '{"ids":["act_restock_aisle4","act_missing"],"status":"DONE"}' http://localhost:3000/api/activities/bulk-status
+HTTP/1.1 207 Multi-Status
+Content-Type: application/json; charset=utf-8
+Content-Length: 191
+
+{"requested":2,"updated":1,"results":[{"id":"act_restock_aisle4","outcome":"updated","code":null,"status":"DONE"},{"id":"act_missing","outcome":"not_found","code":"NOT_FOUND","status":null}]}
+
+
+$ curl -s -i -X PATCH ... -d '{"ids":["act_planogram_home","act_chiller_temp_check","act_nope"],"status":"BLOCKED"}' .../bulk-status
+HTTP/1.1 207 Multi-Status
+Content-Type: application/json; charset=utf-8
+Content-Length: 274
+
+{"requested":3,"updated":2,"results":[{"id":"act_planogram_home","outcome":"updated","code":null,"status":"BLOCKED"},{"id":"act_chiller_temp_check","outcome":"updated","code":null,"status":"BLOCKED"},{"id":"act_nope","outcome":"not_found","code":"NOT_FOUND","status":null}]}
+
+
+$ curl -s -i -X PATCH (no Authorization) .../bulk-status
+HTTP/1.1 401 Unauthorized
+{"error":{"code":"UNAUTHORIZED","message":"Authorization header must be \"Bearer <token>\""}}
+
+$ curl -s http://localhost:3000/api/alerts -H "Authorization: Bearer token-lead"   # SLA_BREACH raised via event bus for act_planogram_home assignee
+[{"id":"alr_handover_late","userId":"usr_lead","storeId":"store_001","type":"SHIFT_HANDOVER","channel":"IN_APP","status":"SENT","title":"Late shift handover due","body":"Complete the handover checklist before 21:00.","createdAt":"2026-01-07T08:15:00.000Z","readAt":null},{"userId":"usr_lead","storeId":"store_001","type":"SLA_BREACH","channel":"IN_APP","status":"PENDING","title":"SLA breach on activity act_planogram_home","body":"Activity moved to BLOCKED (priority MEDIUM).","id":"alr_mup0bh1l001","createdAt":"2026-10-01T04:01:09.897Z","readAt":null},{"userId":"usr_lead","storeId":"store_001","type":"SLA_BREACH","channel":"EMAIL","status":"PENDING","title":"SLA breach on activity act_chiller_temp_check","body":"Activity moved to BLOCKED (priority CRITICAL).","id":"alr_mup0bh1l002","createdAt":"2026-10-01T04:01:09.897Z","readAt":null}]

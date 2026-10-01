@@ -1,0 +1,13 @@
+node_modules
+dist
+coverage
+.git
+.github
+.harness
+.harness-notes
+.claude
+tests
+*.md
+.env
+.env.local
+*.log
